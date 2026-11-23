@@ -1,0 +1,64 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  margin: 0;
+  background-color: #0b0f19;
+  color: #f3f4f6;
+  font-family:
+    "Plus Jakarta Sans",
+    system-ui,
+    -apple-system,
+    sans-serif;
+  overflow-x: hidden;
+}
+
+/* Hyper-Realistic Glassmorphism Utility */
+.glass-card {
+  position: relative;
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.08) 0%,
+    rgba(255, 255, 255, 0.02) 40%,
+    rgba(15, 23, 42, 0.75) 70%
+  );
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-radius: 1.25rem; /* ~20px rounded corners */
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  box-shadow:
+    0 20px 40px -15px rgba(0, 0, 0, 0.8),
+    inset 0 1px 1px 0 rgba(255, 255, 255, 0.3),
+    /* Bright top inner bevel */ inset 0 -1px 1px 0 rgba(0, 0, 0, 0.5); /* Subtle bottom inner depth */
+  overflow: hidden;
+  transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Glass Reflection Sheen overlay */
+.glass-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 45%;
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.12) 0%,
+    rgba(255, 255, 255, 0) 30%
+  );
+  pointer-events: none;
+  border-top-left-radius: inherit;
+  border-top-right-radius: inherit;
+}
+
+/* Hover Accent Glow */
+.glass-card:hover {
+  border-color: rgba(255, 255, 255, 0.3);
+  transform: translateY(-2px);
+  box-shadow:
+    0 25px 50px -12px rgba(0, 0, 0, 0.9),
+    0 0 20px 0 rgba(56, 189, 248, 0.15),
+    /* Soft neon halo */ inset 0 1px 2px 0 rgba(255, 255, 255, 0.5);
+}
