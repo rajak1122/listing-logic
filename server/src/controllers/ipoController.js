@@ -2,8 +2,8 @@ const Ipo = require("../models/Ipo");
 const mongoose = require("mongoose");
 
 const {
-  syncActiveIposData,
-  syncClosedIposData,
+  runFullIpoSync,
+  backfillClosedIpoListingDates,
 } = require("../services/ipoSyncService");
 
 const { calculateIpoScore } = require("../services/scoringEngine");
@@ -108,20 +108,33 @@ const deleteIpo = async (req, res) => {
 
 const syncActiveIpos = async (req, res) => {
   try {
-    const syncedCount = await syncActiveIposData();
-    await syncClosedIposData();
+    const result = await runFullIpoSync({
+      trigger: "manual",
+    });
 
-    res.json({
+    if (result.skipped) {
+      return res.status(409).json({
+        success: false,
+        code: "SYNC_ALREADY_RUNNING",
+        message:
+          "An IPO synchronization is already running. Please try again later.",
+      });
+    }
+
+    return res.status(200).json({
       success: true,
       message: "Live IPO sync completed successfully!",
-      count: syncedCount,
+      count: result.activeSyncedCount,
+      activeSyncedCount: result.activeSyncedCount,
+      closedUpdatedCount: result.closedUpdatedCount,
+      durationMs: result.durationMs,
     });
   } catch (error) {
-    console.error("Sync error:", error);
+    console.error("[Manual IPO Sync Error]", error);
 
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
-      message: "Failed to sync live IPO data",
+      message: "Failed to synchronize IPO data.",
     });
   }
 };
@@ -130,17 +143,17 @@ const backfillClosedIpoListingDatesController = async (req, res) => {
   try {
     const updatedCount = await backfillClosedIpoListingDates();
 
-    res.json({
+    return res.status(200).json({
       success: true,
-      message: "Closed IPO listing dates backfilled successfully!",
-      count: updatedCount,
+      message: "Closed IPO listing date backfill completed.",
+      updatedCount,
     });
   } catch (error) {
-    console.error("Closed IPO backfill error:", error);
+    console.error("[Closed IPO Listing Date Backfill Error]", error);
 
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
-      message: "Failed to backfill closed IPO listing dates",
+      message: "Failed to backfill closed IPO listing dates.",
     });
   }
 };

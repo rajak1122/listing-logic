@@ -1,115 +1,179 @@
 const axios = require("axios");
 
 /**
- * Fetch active IPO data from ScriptTick
+ * Fetch active IPO data from ScriptTick.
+ *
+ * A successful empty response returns [].
+ * A network failure or unexpected payload throws an error so that
+ * the sync process cannot mistake an upstream outage for an empty dataset.
  */
 const fetchOpenIpos = async () => {
+  let response;
+
   try {
-    const response = await axios.get(
-      "https://www.scripttick.live/data/entries.txt",
-      {
-        headers: {
-          "User-Agent":
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-        },
+    response = await axios.get("https://www.scripttick.live/data/entries.txt", {
+      timeout: 15000,
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
       },
-    );
-
-    const lines = response.data
-      .split("\n")
-      .map((line) => line.trim())
-      .filter(Boolean);
-
-    const fetchedIpos = [];
-
-    for (const line of lines) {
-      const parts = line.split("|");
-
-      if (parts.length < 12) continue;
-
-      const [
-        exchange,
-        companyName,
-        faceValue, // Index 2 (New)
-        priceBand, // Index 3 (Shifted)
-        lotSize, // Index 4 (New)
-        openDate, // Index 5
-        closeDate, // Index 6
-        allotmentDate, // Index 7
-        creditDate, // Index 8
-        listingDate, // Index 9
-        empDisc, // Index 10
-        gmp, // Index 11
-        issueSize, // Index 12
-        subscription, // Index 13
-        registrar, // Index 14
-      ] = parts;
-
-      if (!companyName) continue;
-
-      fetchedIpos.push({
-        companyName: companyName.trim(),
-        priceBand: priceBand?.replace(/^Band\s*/i, "").trim() || null,
-        gmp: gmp?.replace(/^GMP\s*/i, "").trim() || "0",
-        dates: {
-          open: openDate?.replace(/^Open\s*/i, "").trim() || null,
-          close: closeDate?.replace(/^Close\s*/i, "").trim() || null,
-          allotment:
-            allotmentDate?.replace(/^Allotment\s*/i, "").trim() || null,
-          credit: creditDate?.replace(/^Credit\s*/i, "").trim() || null,
-          listing: listingDate?.replace(/^Listing\s*/i, "").trim() || null,
-        },
-        exchange: exchange?.trim() || null,
-        issueSize: issueSize?.replace(/^Issue Size\s*/i, "").trim() || null,
-        subscription:
-          subscription?.replace(/^Subscription\s*/i, "").trim() || null,
-        status: "ACTIVE",
-      });
-    }
-
-    console.log(
-      `[ScriptTick] Fetched ${fetchedIpos.length} IPOs from entries.txt`,
-    );
-
-    return fetchedIpos;
+    });
   } catch (error) {
-    console.error("[ScriptTick] Failed to fetch IPO data:", error.message);
+    console.error(
+      "[ScriptTick] Request failed:",
+      error.response?.status || error.code || error.message,
+    );
 
+    throw new Error(`[ScriptTick] Unable to fetch IPO data: ${error.message}`);
+  }
+
+  if (typeof response.data !== "string") {
+    throw new Error(
+      "[ScriptTick] Unexpected response format. Expected text data.",
+    );
+  }
+
+  const lines = response.data
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  // A genuinely empty successful response is different from a failed request.
+  if (lines.length === 0) {
+    console.warn("[ScriptTick] Successful response contained no IPO rows.");
     return [];
   }
+
+  const fetchedIpos = [];
+
+  for (const line of lines) {
+    const parts = line.split("|");
+
+    if (parts.length < 12) continue;
+
+    const [
+      exchange,
+      companyName,
+      faceValue,
+      priceBand,
+      lotSize,
+      openDate,
+      closeDate,
+      allotmentDate,
+      creditDate,
+      listingDate,
+      empDisc,
+      gmp,
+      issueSize,
+      subscription,
+      registrar,
+    ] = parts;
+
+    if (!companyName?.trim()) continue;
+
+    const parsedGmp = gmp?.replace(/^GMP\s*/i, "").trim();
+
+    fetchedIpos.push({
+      companyName: companyName.trim(),
+
+      priceBand: priceBand?.replace(/^Band\s*/i, "").trim() || null,
+
+      // Preserve a missing GMP as null, not an artificial zero.
+      // A genuine source value of "0" remains zero.
+      gmp: parsedGmp || null,
+
+      dates: {
+        open: openDate?.replace(/^Open\s*/i, "").trim() || null,
+        close: closeDate?.replace(/^Close\s*/i, "").trim() || null,
+
+        allotment: allotmentDate?.replace(/^Allotment\s*/i, "").trim() || null,
+
+        credit: creditDate?.replace(/^Credit\s*/i, "").trim() || null,
+
+        listing: listingDate?.replace(/^Listing\s*/i, "").trim() || null,
+      },
+
+      exchange: exchange?.trim() || null,
+
+      issueSize: issueSize?.replace(/^Issue Size\s*/i, "").trim() || null,
+
+      subscription:
+        subscription?.replace(/^Subscription\s*/i, "").trim() || null,
+
+      status: "ACTIVE",
+    });
+  }
+
+  if (fetchedIpos.length === 0) {
+    throw new Error(
+      `[ScriptTick] Unexpected payload format. ` +
+        `${lines.length} non-empty lines received but no valid IPO records were parsed.`,
+    );
+  }
+
+  console.log(
+    `[ScriptTick] Successfully parsed ${fetchedIpos.length} IPO records.`,
+  );
+
+  return fetchedIpos;
 };
 
 /**
- * Fetch BSE public issue list
+ * Fetch the BSE public issue list.
+ *
+ * Validate the expected payload structure instead of silently
+ * treating an unexpected response as an empty IPO list.
  */
 const fetchBseIpoList = async () => {
+  let response;
+
   try {
-    const response = await axios.get(
+    response = await axios.get(
       "https://api.bseindia.com/BseIndiaAPI/api/GetPublicIssue_par_updated/w?flag=1",
       {
+        timeout: 15000,
         insecureHTTPParser: true,
+
         headers: {
           Accept: "application/json, text/plain, */*",
           "Accept-Language": "en-US,en;q=0.9",
           Origin: "https://www.bseindia.com",
           Referer: "https://www.bseindia.com/",
+
           "User-Agent":
             "Mozilla/5.0 (iPhone; CPU iPhone OS 18_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.5 Mobile/15E148 Safari/604.1",
         },
       },
     );
-
-    console.log("[BSE IPO List] Response received");
-
-    // console.log("[BSE IPO Sample]", response.data?.Table?.[0]);
-
-    return response.data?.Table || [];
   } catch (error) {
-    console.error("[BSE IPO List] Failed to fetch IPO list:", error.message);
+    console.error(
+      "[BSE IPO List] Request failed:",
+      error.response?.status || error.code || error.message,
+    );
 
-    return [];
+    throw new Error(
+      `[BSE IPO List] Unable to fetch public issues: ${error.message}`,
+    );
   }
+
+  const bseIpos = response.data?.Table;
+
+  if (!Array.isArray(bseIpos)) {
+    throw new Error(
+      "[BSE IPO List] Unexpected response format. Expected Table array.",
+    );
+  }
+
+  console.log(
+    `[BSE IPO List] Successfully received ${bseIpos.length} records.`,
+  );
+
+  return bseIpos;
 };
+
+// ==========================================
+// BSE IPO COMPANY NAME MATCHING
+// ==========================================
 
 const normalizeCompanyName = (name) => {
   return name
@@ -121,6 +185,7 @@ const normalizeCompanyName = (name) => {
 };
 
 const findBseIpo = (companyName, bseIpos, bseIpoDirectoryCode) => {
+  // Prefer the previously verified BSE directory code.
   if (bseIpoDirectoryCode) {
     const byDirectoryCode = bseIpos.find(
       (ipo) => String(ipo.Scrip_cd) === String(bseIpoDirectoryCode),
@@ -129,6 +194,7 @@ const findBseIpo = (companyName, bseIpos, bseIpoDirectoryCode) => {
     if (byDirectoryCode) return byDirectoryCode;
   }
 
+  // Fall back to normalized company-name matching.
   const normalizedName = normalizeCompanyName(companyName);
 
   return bseIpos.find(
