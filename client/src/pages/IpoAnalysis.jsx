@@ -38,8 +38,7 @@ const IpoAnalysis = () => {
 
       try {
         const response = await axios.get(
-          `http://localhost:5000/api/ipos/${id}`,
-        );
+`${import.meta.env.VITE_API_BASE_URL || "https://listinglogic-api.onrender.com"}/api/ipos/${id}`,        );
         if (isMounted) setIpo(response.data?.data ?? null);
       } catch (error) {
         console.error("Failed to fetch IPO:", error);
