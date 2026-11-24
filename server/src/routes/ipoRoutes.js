@@ -1,5 +1,6 @@
 const express = require("express");
 const router = express.Router();
+
 const {
   getIpos,
   getIpoById,
@@ -10,32 +11,63 @@ const {
   backfillClosedIpoListingDatesController,
 } = require("../controllers/ipoController");
 
+const {
+  verifyFirebaseToken,
+  requireAdmin,
+} = require("../middleware/authMiddleware");
+
 const { backfillClosedIpoScripCodes } = require("../services/ipoSyncService");
 
-router.route("/").get(getIpos).post(createIpo);
+// ==========================================
+// PUBLIC ROUTES
+// ==========================================
 
-router.post("/sync", syncActiveIpos);
+router.get("/", getIpos);
 
-router.post("/backfill-listing-dates", backfillClosedIpoListingDatesController);
+router.get("/:id", getIpoById);
 
-router.get("/backfill-scrip-codes", async (req, res) => {
-  try {
-    const updatedCount = await backfillClosedIpoScripCodes();
+// ==========================================
+// PROTECTED ADMIN ROUTES
+// ==========================================
 
-    res.json({
-      message: "Closed IPO Scrip Code backfill completed",
-      updatedCount,
-    });
-  } catch (error) {
-    console.error("[Scrip Code Backfill Route] Error:", error.message);
+router.post("/", verifyFirebaseToken, requireAdmin, createIpo);
 
-    res.status(500).json({
-      message: "Scrip Code backfill failed",
-      error: error.message,
-    });
-  }
-});
+router.put("/:id", verifyFirebaseToken, requireAdmin, updateIpo);
 
-router.route("/:id").get(getIpoById).put(updateIpo).delete(deleteIpo);
+router.delete("/:id", verifyFirebaseToken, requireAdmin, deleteIpo);
+
+router.post("/sync", verifyFirebaseToken, requireAdmin, syncActiveIpos);
+
+router.post(
+  "/backfill-listing-dates",
+  verifyFirebaseToken,
+  requireAdmin,
+  backfillClosedIpoListingDatesController,
+);
+
+router.post(
+  "/backfill-scrip-codes",
+  verifyFirebaseToken,
+  requireAdmin,
+  async (req, res) => {
+    try {
+      const updatedCount = await backfillClosedIpoScripCodes();
+
+      res.json({
+        success: true,
+        message: "Closed IPO Scrip Code backfill completed",
+        updatedCount,
+      });
+    } catch (error) {
+      console.error("[Scrip Code Backfill Route]", error.message);
+
+      res.status(500).json({
+        success: false,
+        message: "Scrip Code backfill failed",
+        error: error.message,
+      });
+    }
+  },
+);
 
 module.exports = router;

@@ -6,7 +6,9 @@
   "scripts": {
     "start": "node src/app.js",
     "dev": "nodemon src/app.js",
-    "seed": "node src/utils/seedIpo.js"
+    "seed": "node src/utils/seedIpo.js",
+    "bootstrap:superadmin": "node src/utils/bootstrapSuperAdmin.js",
+    "test": "node --test"
   },
   "keywords": [],
   "author": "",
@@ -18,6 +20,7 @@
     "cors": "^2.8.6",
     "dotenv": "^18.0.4",
     "express": "^5.2.1",
+    "firebase-admin": "^14.5.1",
     "mongoose": "^9.10.2",
     "node-cron": "^4.6.0"
   },

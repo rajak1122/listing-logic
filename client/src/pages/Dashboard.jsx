@@ -3,11 +3,13 @@ import axios from "axios";
 import { Navbar } from "../components/common/Navbar";
 import { IpoCard } from "../components/dashboard/IpoCard";
 import { FiSearch, FiLayers } from "react-icons/fi";
-// import { IpoDetailsModal } from "../components/dashboard/IpoDetailsModal";
 import UpcomingIpoTable from "../components/dashboard/UpcomingIpoTable";
 import ClosedIpoTable from "../components/dashboard/ClosedIpoTable";
 import ListedIpoTable from "../components/dashboard/ListedIpoTable";
 import Footer from "../components/dashboard/Footer";
+
+const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL || "http://localhost:5000";
 
 export const Dashboard = () => {
   const [ipos, setIpos] = useState([]);
@@ -38,7 +40,7 @@ export const Dashboard = () => {
 
   const filteredIpos = ipos
     .filter((ipo) => {
-      const matchesSearch = ipo.companyName
+      const matchesSearch = String(ipo.companyName || "")
         .toLowerCase()
         .includes(searchTerm.toLowerCase());
 
@@ -85,15 +87,13 @@ export const Dashboard = () => {
     .filter((ipo) => ipo.status === "UPCOMING")
     .sort((a, b) => new Date(a.openDate) - new Date(b.openDate));
 
-  console.log("Upcoming IPOs:", upcomingIpos);
-
   useEffect(() => {
     fetchIpos();
   }, []);
 
   const fetchIpos = async () => {
     try {
-      const response = await axios.get("http://localhost:5000/api/ipos");
+      const response = await axios.get(`${API_BASE_URL}/api/ipos`);
       setIpos(response.data.data || []);
     } catch (err) {
       console.error("Failed to fetch IPOs:", err);
@@ -104,14 +104,12 @@ export const Dashboard = () => {
 
   return (
     <div className="min-h-screen flex flex-col bg-darkbg text-slate-100 relative overflow-clip">
-      {/* Background Ambient Glows */}
       <div className="absolute top-[-10%] left-[-10%] w-[400px] h-[400px] bg-emerald-500/10 rounded-full blur-[120px] pointer-events-none" />
       <div className="absolute bottom-[-10%] right-[-10%] w-[400px] h-[400px] bg-cyan-500/10 rounded-full blur-[120px] pointer-events-none" />
 
       <Navbar onSyncSuccess={fetchIpos} />
 
       <main className="flex-1 w-full max-w-7xl mx-auto px-6 pt-8 pb-2 relative z-10">
-        {/* Search & Filter Bar */}
         <div className="flex flex-col sm:flex-row justify-between items-center gap-4 mb-8">
           <div className="relative w-full sm:w-80">
             <FiSearch className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -145,6 +143,7 @@ export const Dashboard = () => {
               {getTimeAgo(latestSyncTime)}
             </div>
           </div>
+
           <div className="flex flex-wrap gap-2 mt-4">
             {[
               { label: "All", value: "ALL" },
@@ -166,7 +165,7 @@ export const Dashboard = () => {
             ))}
           </div>
         </div>
-        {/* Cards Grid */}
+
         {loading ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {[1, 2, 3].map((n) => (
@@ -186,15 +185,11 @@ export const Dashboard = () => {
             </p>
           </div>
         )}
-        <div className="pt-5">
-          {/* <IpoDetailsModal
-            ipo={selectedIpo}
-            onClose={() => setSelectedIpo(null)}
-          /> */}
-        </div>
+
         <ClosedIpoTable ipos={ipos} />
         <ListedIpoTable ipos={ipos} />
       </main>
+
       <Footer />
     </div>
   );
