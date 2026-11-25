@@ -220,7 +220,7 @@ in reports.
 
 ## Copyright & Usage
 
-Copyright © 2026 [YOUR FULL LEGAL NAME]. All Rights Reserved.
+Copyright © 2026 RAJA K. All Rights Reserved.
 
 ListingLogic is an independently developed proprietary project.
 
