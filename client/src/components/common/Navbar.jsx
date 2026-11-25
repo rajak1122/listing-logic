@@ -85,8 +85,7 @@ export const Navbar = ({ onSyncSuccess }) => {
     adminProfile?.status === "ACTIVE" &&
     ["ADMIN", "SUPER_ADMIN"].includes(adminProfile?.role);
 
-  const isSuperAdmin =
-    isAdmin && adminProfile?.role === "SUPER_ADMIN";
+  const isSuperAdmin = isAdmin && adminProfile?.role === "SUPER_ADMIN";
 
   const handleSync = async () => {
     if (!user || !isAdmin) return;
@@ -140,9 +139,13 @@ export const Navbar = ({ onSyncSuccess }) => {
     <nav className="sticky top-0 z-50 border-b border-white/10 px-4 sm:px-6 py-4 backdrop-blur-xl bg-[#0b0f19]/75">
       <div className="max-w-7xl mx-auto flex justify-between items-center gap-3">
         <Link to="/" className="flex items-center gap-3 min-w-0">
-          <div className="p-2.5 rounded-xl bg-gradient-to-tr from-emerald-500/20 to-cyan-500/20 border border-emerald-500/30 text-emerald-400 shadow-glowGreen">
-            <FiTrendingUp className="text-2xl" />
-          </div>
+          <a href="/" className="flex items-center">
+            <img
+              src="/logo-icon.svg"
+              alt="ListingLogic"
+              className="h-10 w-auto object-contain"
+            />
+          </a>
 
           <div className="min-w-0">
             <h1 className="text-xl font-bold tracking-wide bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent">
