@@ -14,8 +14,11 @@ const {
   revokeAdminAccess,
   restoreAdminAccess,
   getAdminAuditLogs,
-  getMyAdminProfile
+  getMyAdminProfile,
 } = require("../controllers/adminController");
+const {
+  testBseSecuritySearch,
+} = require("../controllers/bseDiagnosticController");
 
 // All management routes require a valid Firebase token.
 router.use(verifyFirebaseToken);
@@ -25,6 +28,9 @@ router.get("/me", requireAdmin, getMyAdminProfile);
 
 // All remaining management routes require SUPER_ADMIN.
 router.use(requireSuperAdmin);
+
+// Temporary BSE outbound connectivity diagnostic.
+router.get("/diagnostics/bse-security-search", testBseSecuritySearch);
 
 // List administrators.
 router.get("/", getAdmins);
