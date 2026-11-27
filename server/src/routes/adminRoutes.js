@@ -18,6 +18,7 @@ const {
 } = require("../controllers/adminController");
 const {
   testBseSecuritySearch,
+  testBseListingPrice,
 } = require("../controllers/bseDiagnosticController");
 
 // All management routes require a valid Firebase token.
@@ -31,6 +32,7 @@ router.use(requireSuperAdmin);
 
 // Temporary BSE outbound connectivity diagnostic.
 router.get("/diagnostics/bse-security-search", testBseSecuritySearch);
+router.get("/diagnostics/bse-listing-price", testBseListingPrice);
 
 // List administrators.
 router.get("/", getAdmins);

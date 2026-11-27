@@ -1,4 +1,7 @@
 const axios = require("axios");
+const {
+  fetchBseListingDayPrice,
+} = require("../services/bseListingPriceService");
 
 const BSE_HOME = "https://www.bseindia.com/";
 const BSE_SEARCH = "https://api.bseindia.com/BseIndiaAPI/api/PeerSmartSearch/w";
@@ -98,4 +101,36 @@ const testBseSecuritySearch = async (req, res) => {
   }
 };
 
-module.exports = { testBseSecuritySearch };
+const testBseListingPrice = async (req, res) => {
+  const startedAt = Date.now();
+
+  try {
+    const result = await fetchBseListingDayPrice(
+      "545032",
+      "2026-11-27T00:00:00.000Z",
+    );
+
+    return res.status(200).json({
+      success: true,
+      diagnostic: "BSE_LISTING_PRICE",
+      server: "RENDER",
+      responseTimeMs: Date.now() - startedAt,
+      data: result,
+    });
+  } catch (error) {
+    console.error("[BSE LISTING DIAGNOSTIC]", error.message);
+
+    return res.status(200).json({
+      success: false,
+      diagnostic: "BSE_LISTING_PRICE",
+      server: "RENDER",
+      responseTimeMs: Date.now() - startedAt,
+      error: error.message,
+    });
+  }
+};
+
+module.exports = {
+  testBseSecuritySearch,
+  testBseListingPrice,
+};

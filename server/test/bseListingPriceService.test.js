@@ -1,11 +1,15 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const axios = require("axios");
 
 const {
   fetchBseListingDayPrice,
 } = require("../src/services/bseListingPriceService");
 
 const expectedDate = "2026-11-26T00:00:00.000Z";
+
+const HOME_URL = "https://www.bseindia.com/";
+const API_URL = "https://api.bseindia.com/BseIndiaAPI/api/getScripHeaderData/w";
 
 const validResponse = {
   Header: {
@@ -18,28 +22,56 @@ const validResponse = {
   },
 };
 
-const mockFetch = (t, response, options = {}) => {
-  const originalFetch = globalThis.fetch;
+const mockAxiosGet = (t, implementation) => {
+  const originalGet = axios.get;
 
-  globalThis.fetch = async () => {
-    if (options.networkError) {
-      throw new Error("Network failure");
-    }
-
-    return {
-      ok: options.ok ?? true,
-      status: options.status ?? 200,
-      json: async () => response,
-    };
-  };
+  axios.get = implementation;
 
   t.after(() => {
-    globalThis.fetch = originalFetch;
+    axios.get = originalGet;
   });
 };
 
-test("returns listing-day opening price for matching date", async (t) => {
-  mockFetch(t, validResponse);
+const mockSuccessfulBseRequests = (t, apiResponse = validResponse) => {
+  const calls = [];
+
+  mockAxiosGet(t, async (url, config = {}) => {
+    calls.push({ url, config });
+
+    if (url === HOME_URL) {
+      return {
+        status: 200,
+        headers: {
+          "set-cookie": [
+            "bm_s=test-session; Domain=.bseindia.com; Path=/; Secure",
+            "hostOnly=test; Path=/",
+          ],
+        },
+        data: "BSE Homepage",
+      };
+    }
+
+    if (url.startsWith(API_URL)) {
+      return {
+        status: 200,
+        headers: {
+          "content-type": "application/json",
+        },
+        data:
+          typeof apiResponse === "string"
+            ? apiResponse
+            : JSON.stringify(apiResponse),
+      };
+    }
+
+    throw new Error(`Unexpected request URL: ${url}`);
+  });
+
+  return calls;
+};
+
+test("returns listing-day opening price and forwards BSE session cookies", async (t) => {
+  const calls = mockSuccessfulBseRequests(t);
 
   const result = await fetchBseListingDayPrice("545031", expectedDate);
 
@@ -48,10 +80,20 @@ test("returns listing-day opening price for matching date", async (t) => {
   assert.equal(result.low, 268);
   assert.equal(result.listingDate, "2026-11-26");
   assert.equal(result.source, "BSE_SCRIP_HEADER");
+
+  assert.equal(calls.length, 2);
+
+  // Verify homepage warm-up happened first.
+  assert.equal(calls[0].url, HOME_URL);
+
+  // Verify compatible cookie was forwarded to BSE API.
+  assert.equal(calls[1].config.headers.Cookie, "bm_s=test-session");
+
+  assert.equal(calls[1].config.responseType, "text");
 });
 
 test("rejects when BSE quote date does not match listing date", async (t) => {
-  mockFetch(t, {
+  mockSuccessfulBseRequests(t, {
     Header: {
       ...validResponse.Header,
       Ason: "27 Nov 26 | 10:00",
@@ -64,15 +106,24 @@ test("rejects when BSE quote date does not match listing date", async (t) => {
   );
 });
 
-test("rejects invalid BSE scrip code", async (t) => {
+test("rejects invalid BSE scrip code without making a request", async (t) => {
+  let requestCount = 0;
+
+  mockAxiosGet(t, async () => {
+    requestCount++;
+    throw new Error("Request should not happen");
+  });
+
   await assert.rejects(
     () => fetchBseListingDayPrice("123", expectedDate),
     /Invalid BSE scrip code/,
   );
+
+  assert.equal(requestCount, 0);
 });
 
-test("rejects when Header is missing", async (t) => {
-  mockFetch(t, {});
+test("rejects when BSE response Header is missing", async (t) => {
+  mockSuccessfulBseRequests(t, {});
 
   await assert.rejects(
     () => fetchBseListingDayPrice("545031", expectedDate),
@@ -81,7 +132,7 @@ test("rejects when Header is missing", async (t) => {
 });
 
 test("rejects invalid opening price", async (t) => {
-  mockFetch(t, {
+  mockSuccessfulBseRequests(t, {
     Header: {
       ...validResponse.Header,
       Open: "0",
@@ -90,24 +141,82 @@ test("rejects invalid opening price", async (t) => {
 
   await assert.rejects(
     () => fetchBseListingDayPrice("545031", expectedDate),
-    /Invalid opening price/,
+    /Invalid BSE opening price/,
   );
 });
 
-test("rejects when BSE API returns HTTP error", async (t) => {
-  mockFetch(t, {}, { ok: false, status: 503 });
+test("rejects when BSE API returns HTTP 403", async (t) => {
+  mockAxiosGet(t, async (url) => {
+    if (url === HOME_URL) {
+      return {
+        status: 200,
+        headers: { "set-cookie": [] },
+        data: "Homepage",
+      };
+    }
+
+    return {
+      status: 403,
+      headers: { "content-type": "text/html" },
+      data: "Access Denied",
+    };
+  });
 
   await assert.rejects(
     () => fetchBseListingDayPrice("545031", expectedDate),
-    /HTTP 503/,
+    /BSE API HTTP 403/,
   );
 });
 
-test("rejects when network request fails", async (t) => {
-  mockFetch(t, {}, { networkError: true });
+test("rejects when BSE returns HTML instead of JSON", async (t) => {
+  mockSuccessfulBseRequests(t, "<html>Access Denied</html>");
+
+  await assert.rejects(
+    () => fetchBseListingDayPrice("545031", expectedDate),
+    /BSE returned non-JSON response/,
+  );
+});
+
+test("rejects when BSE API network request fails", async (t) => {
+  mockAxiosGet(t, async (url) => {
+    if (url === HOME_URL) {
+      return {
+        status: 200,
+        headers: { "set-cookie": [] },
+        data: "Homepage",
+      };
+    }
+
+    throw new Error("Network failure");
+  });
 
   await assert.rejects(
     () => fetchBseListingDayPrice("545031", expectedDate),
     /Network failure/,
   );
+});
+
+test("continues API request when homepage cookie warm-up fails", async (t) => {
+  let apiRequestReached = false;
+
+  mockAxiosGet(t, async (url) => {
+    if (url === HOME_URL) {
+      throw new Error("Homepage unavailable");
+    }
+
+    apiRequestReached = true;
+
+    return {
+      status: 200,
+      headers: {
+        "content-type": "application/json",
+      },
+      data: JSON.stringify(validResponse),
+    };
+  });
+
+  const result = await fetchBseListingDayPrice("545031", expectedDate);
+
+  assert.equal(apiRequestReached, true);
+  assert.equal(result.openingPrice, 280);
 });
