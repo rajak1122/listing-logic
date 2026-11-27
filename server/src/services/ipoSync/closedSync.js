@@ -6,7 +6,7 @@ const {
   fetchBseSubscription,
   fetchBseSecurityCode,
 } = require("../scraperService");
-const { fetchBseListingDayBhavCopyData } = require("../bseBhavcopyService");
+const { fetchBseListingDayPrice } = require("../bseListingPriceService");
 const { fetchCompanyFinancialsWithFallback } = require("./financialService");
 const { parseSourceDate } = require("./dateUtils");
 const {
@@ -281,11 +281,19 @@ const syncClosedIposData = async () => {
         `[Listing Update] Checking ${ipo.companyName} → BSE ${actualBseScripCode}`,
       );
 
-      // Fetch the exact listing-day opening price from BSE Bhavcopy.
-      const listingData = await fetchBseListingDayBhavCopyData(
-        actualBseScripCode,
-        ipo.tentativeListingDate,
-      );
+      // Fetch listing-day opening price from BSE Scrip Header API.
+      let listingData = null;
+
+      try {
+        listingData = await fetchBseListingDayPrice(
+          actualBseScripCode,
+          ipo.tentativeListingDate,
+        );
+      } catch (error) {
+        console.warn(
+          `[Listing Update] ${ipo.companyName}: BSE listing price unavailable - ${error.message}`,
+        );
+      }
 
       const actualListingPrice = isValidListingPrice(listingData?.openingPrice)
         ? Number(listingData.openingPrice)
@@ -327,7 +335,7 @@ const syncClosedIposData = async () => {
       } else {
         await scheduleListingRetry(
           ipo,
-          "BSE listing-day Bhavcopy unavailable or opening price invalid",
+          "BSE listing-day Scrip Header data unavailable or opening price invalid",
         );
       }
     }

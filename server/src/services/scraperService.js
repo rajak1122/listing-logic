@@ -256,14 +256,66 @@ const fetchBseSecurityCode = async (
   companyName,
   { symbol = null, isin = null } = {},
 ) => {
-  try {
-    const searchTerms = [
-      { value: isin, type: "isin" },
-      { value: symbol, type: "symbol" },
-      { value: companyName, type: "company" },
-    ].filter((item) => item.value);
+  const searchTerms = [
+    { value: isin, type: "isin" },
+    { value: symbol, type: "symbol" },
+    { value: companyName, type: "company" },
+  ].filter((item) => item.value);
 
-    for (const searchTerm of searchTerms) {
+  const commonHeaders = {
+    Accept: "application/json, text/plain, */*",
+    "Accept-Language": "en-US,en;q=0.9",
+    Origin: "https://www.bseindia.com",
+    Referer: "https://www.bseindia.com/",
+    "Sec-Ch-Ua": '"Chromium";v="131", "Not_A Brand";v="24"',
+    "Sec-Ch-Ua-Mobile": "?0",
+    "Sec-Ch-Ua-Platform": '"Windows"',
+    "Sec-Fetch-Dest": "empty",
+    "Sec-Fetch-Mode": "cors",
+    "Sec-Fetch-Site": "same-site",
+    "User-Agent":
+      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+  };
+
+  // Step 1: Warm up BSE session and collect API-compatible cookies.
+  let cookieHeader = "";
+
+  try {
+    const initRes = await axios.get("https://www.bseindia.com/", {
+      headers: commonHeaders,
+      timeout: 10000,
+    });
+
+    const setCookies = initRes.headers["set-cookie"] || [];
+
+    cookieHeader = setCookies
+      .filter((cookie) => {
+        const domain = cookie.match(/;\s*domain=([^;]+)/i)?.[1];
+
+        // Host-only cookies for www.bseindia.com are not
+        // valid for api.bseindia.com.
+        return domain && /(^|\.)bseindia\.com$/i.test(domain);
+      })
+      .map((cookie) => cookie.split(";")[0])
+      .join("; ");
+
+    console.log(
+      `[BSE COOKIE WARMUP] ${companyName}: ${cookieHeader ? "Session cookies acquired" : "No API-compatible cookies received"}`,
+    );
+  } catch (error) {
+    console.warn(
+      `[BSE COOKIE WARMUP] Failed for ${companyName}:`,
+      error.response?.status || error.message,
+    );
+  }
+
+  // Step 2: Search using ISIN, symbol, then company name.
+  for (const searchTerm of searchTerms) {
+    try {
+      console.log(
+        `[BSE SECURITY SEARCH] Trying ${searchTerm.type} for ${companyName}`,
+      );
+
       const response = await axios.get(
         "https://api.bseindia.com/BseIndiaAPI/api/PeerSmartSearch/w",
         {
@@ -272,14 +324,9 @@ const fetchBseSecurityCode = async (
             text: searchTerm.value,
           },
           timeout: 15000,
-          insecureHTTPParser: true,
           headers: {
-            Accept: "application/json, text/plain, */*",
-            "Accept-Language": "en-US,en;q=0.9",
-            Origin: "https://www.bseindia.com",
-            Referer: "https://www.bseindia.com/",
-            "User-Agent":
-              "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36",
+            ...commonHeaders,
+            ...(cookieHeader ? { Cookie: cookieHeader } : {}),
           },
         },
       );
@@ -296,7 +343,12 @@ const fetchBseSecurityCode = async (
 
       const candidates = extractBseSecurityCandidates(html);
 
-      if (!candidates.length) continue;
+      if (!candidates.length) {
+        console.warn(
+          `[BSE SECURITY SEARCH] No candidates for ${searchTerm.type}: ${companyName}`,
+        );
+        continue;
+      }
 
       const normalizedSearch = normalizeBseLookupValue(searchTerm.value);
 
@@ -334,7 +386,6 @@ const fetchBseSecurityCode = async (
         return exactMatches[0].code;
       }
 
-      // Company-name search: accept a single unambiguous result only.
       if (searchTerm.type === "company" && candidates.length === 1) {
         console.log(
           `[BSE SECURITY SEARCH] ${companyName} → ${candidates[0].code} (single result)`,
@@ -351,19 +402,23 @@ const fetchBseSecurityCode = async (
 
         return null;
       }
+    } catch (error) {
+      console.error(
+        `[BSE SECURITY SEARCH] ${searchTerm.type} failed for ${companyName}:`,
+        {
+          status: error.response?.status,
+          message: error.message,
+        },
+      );
+
+      // One failed search must not prevent the next fallback search.
+      continue;
     }
-
-    console.warn(`[BSE SECURITY SEARCH] No verified result for ${companyName}`);
-
-    return null;
-  } catch (error) {
-    console.error(
-      `[BSE SECURITY SEARCH] Failed for ${companyName}:`,
-      error.message,
-    );
-
-    return null;
   }
+
+  console.warn(`[BSE SECURITY SEARCH] No verified result for ${companyName}`);
+
+  return null;
 };
 
 /** Normalize BSE payload keys so different API casing/wrappers are supported. */

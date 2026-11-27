@@ -7,7 +7,7 @@ const {
   fetchBseSubscription,
   fetchBseSecurityCode,
 } = require("../scraperService");
-const { fetchBseListingDayBhavCopyData } = require("../bseBhavcopyService");
+const { fetchBseListingDayPrice } = require("../bseListingPriceService");
 const { fetchCompanyFinancialsWithFallback } = require("./financialService");
 const { parseSourceDate } = require("./dateUtils");
 const {
@@ -128,7 +128,7 @@ const syncActiveIposData = async () => {
       }
       if (/^\d{6}$/.test(String(actualBseScripCode || ""))) {
         resolvedBseScripCode = String(actualBseScripCode);
-        const listingData = await fetchBseListingDayBhavCopyData(
+        const listingData = await fetchBseListingDayPrice(
           actualBseScripCode,
           parsedTentativeListingDate,
         );
